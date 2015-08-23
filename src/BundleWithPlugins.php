@@ -3,6 +3,8 @@
 namespace Matthias\BundlePlugins;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\ConfigurationExtensionInterface;
+use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
 /**
@@ -20,8 +22,16 @@ abstract class BundleWithPlugins extends Bundle
      */
     private $registeredPlugins = array();
 
+    /**
+     * @return string
+     */
     abstract protected function getAlias();
 
+    /**
+     * Constructed with an array of plugins to load
+     *
+     * @param array $plugins
+     */
     final public function __construct(array $plugins = array())
     {
         foreach ($this->alwaysRegisteredPlugins() as $plugin) {
@@ -64,11 +74,37 @@ abstract class BundleWithPlugins extends Bundle
     }
 
     /**
+     * Can be overridden to set class name for custom Extension
+     *
+     * @return string
+     */
+    protected function getContainerExtensionClassName()
+    {
+        return '\\Matthias\\BundlePlugins\\ExtensionWithPlugins';
+    }
+
+    /**
      * @inheritdoc
      */
     final public function getContainerExtension()
     {
-        return new ExtensionWithPlugins($this->getAlias(), $this->registeredPlugins);
+        $className = $this->getContainerExtensionClassName();
+
+        if (!class_exists($className)) {
+            throw new \Exception("Class '" . $className . "' does not exist");
+        }
+
+        $containerExtension = new $className($this->getAlias(), $this->registeredPlugins);
+
+        if (($containerExtension instanceof ExtensionInterface) === false) {
+            throw new \Exception("Class '" . $className . "' must implement ExtensionInterface");
+        }
+
+        if (($containerExtension instanceof ConfigurationExtensionInterface) === false) {
+            throw new \Exception("Class '" . $className . "' must implement ConfigurationExtensionInterface");
+        }
+
+        return $containerExtension;
     }
 
     /**
